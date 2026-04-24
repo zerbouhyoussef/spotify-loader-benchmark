@@ -1,23 +1,33 @@
-version: '3.8'
-
 services:
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-broker
     ports:
       - "9093:9093"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2182
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_BYTES: 1073741824
       KAFKA_LOG_RETENTION_MS: 10000
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server=localhost:9093 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    depends_on:
+      zookeeper:
+        condition: service_started
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper-server
     ports:
       - "2182:2182"
     environment:
@@ -26,11 +36,16 @@ services:
       ZOOKEEPER_INIT_LIMIT: 5
       ZOOKEEPER_SYNC_LIMIT: 2
       ZOOKEEPER_MAX_CLIENT_CNXNS: 1000
-      ZOOKEEPER_AUTO_CONF_ENABLE: true
-      ZOOKEEPER_4LW_COMMANDS_WHITELIST: stat, ruok, conf, cons, srvr, mntr
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "stat, ruok, conf, cons, srvr, mntr"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2182 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:13
+    container_name: postgres-server
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -47,6 +62,7 @@ services:
     
   cassandra:
     image: cassandra:latest
+    container_name: cassandra-server
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e 'SELECT NOW()'"]
       interval: 5s
@@ -64,6 +80,7 @@ services:
 
   flink-jobmanager:
     build: flink/
+    container_name: flink-jobmanager-server
     command: jobmanager
     ports:
       - "8081:8081"
@@ -74,6 +91,7 @@ services:
 
   flink-taskmanager:
     build: flink/
+    container_name: flink-taskmanager-server
     command: taskmanager
     depends_on:
       - flink-jobmanager
@@ -93,6 +111,7 @@ services:
 
   airflow-init:
     build: airflow/
+    container_name: airflow-init-server
     command: bash -c "airflow db migrate"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -107,6 +126,7 @@ services:
 
   airflow-webserver:
     build: airflow/
+    container_name: airflow-webserver-server
     command: api-server
     ports:
       - "8080:8080"
@@ -130,6 +150,22 @@ services:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+
+  metrics-producer:
+    build: metrics/
+    container_name: metrics-producer-server
+    command: python producer.py
+    depends_on:
+      kafka:
+        condition: service_healthy
+      flink-jobmanager:
+        condition: service_started
+      flink-taskmanager:
+        condition: service_started
+    volumes:
+      - ./data:/app/data:ro
+    environment:
+      KAFKA_BROKER_URL: kafka-broker:9093
 
 volumes:
   postgres_data:
