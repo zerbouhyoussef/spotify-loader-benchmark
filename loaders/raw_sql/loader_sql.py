@@ -89,3 +89,11 @@ for message in consumer:
     except Exception as e:
         print(f"Error loading playlist: {e}")
         continue
+
+cursor.execute("TRUNCATE playlist_track, track, playlist, album, artist RESTART IDENTITY CASCADE;")
+conn.commit()
+
+print("Done loading data!", flush=True)
+
+conn.close()
+consumer.close()
