@@ -167,7 +167,22 @@ services:
       - ./metrics/data:/app/data:ro
     environment:
       KAFKA_BROKER_URL: kafka-broker:9093
+      
+
+  loader-raw-sql:
+    build: loaders/
+    container_name: loader-raw-sql-server
+    command: python -u raw_sql/loader_sql.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
       PYTHONUNBUFFERED: 1
+    
 
 volumes:
   postgres_data:
