@@ -2,6 +2,7 @@ import psycopg2
 from kafka import KafkaConsumer
 import os 
 import json
+import time
 
 from dotenv import load_dotenv
 
@@ -23,7 +24,17 @@ consumer = KafkaConsumer(
     auto_offset_reset="earliest",
     enable_auto_commit=True,
     group_id="raw-sql-loader",
+    consumer_timeout_ms=30000,
+    max_poll_records=100,
+    fetch_min_bytes=1,
 )
+
+total_expected = int(os.getenv("TOTAL_EXPECTED", "100"))  
+
+start = time.time()
+loaded = 0
+errors = 0
+rows = 0
 
 for message in consumer:
     print(message.value)
@@ -82,18 +93,25 @@ for message in consumer:
                 "INSERT INTO playlist_track (playlist_id, track_id, pos) VALUES (%s, %s, %s)",
                 (playlist_id, track_id, track['pos'])
             )
-        
+
 
         conn.commit()  
         print(f"Loaded playlist: {playlist['pid']}")
+        loaded += 1
+        rows += len(playlist['tracks'])
+        if loaded >= total_expected:
+            print(f"Reached expected number of playlists ({total_expected}). Stopping consumer loop.")
+            break
     except Exception as e:
         print(f"Error loading playlist: {e}")
+        conn.rollback()
+        errors += 1
         continue
 
-cursor.execute("TRUNCATE playlist_track, track, playlist, album, artist RESTART IDENTITY CASCADE;")
-conn.commit()
+duration = time.time() - start
 
 print("Done loading data!", flush=True)
+print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {rows} | Errors: {errors}")
 
 conn.close()
 consumer.close()
