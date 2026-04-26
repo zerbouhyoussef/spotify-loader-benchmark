@@ -1,9 +1,7 @@
-import psycopg2
-from kafka import KafkaConsumer
-import os 
+import os
 import json
+import psycopg2
 import time
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,28 +16,27 @@ conn = psycopg2.connect(
 
 cursor = conn.cursor()
 
-consumer = KafkaConsumer(
-    os.getenv("KAFKA_TOPIC"),
-    bootstrap_servers=[os.getenv("KAFKA_BROKER_URL")],
-    auto_offset_reset="earliest",
-    enable_auto_commit=True,
-    group_id="raw-sql-loader",
-    consumer_timeout_ms=30000,
-    max_poll_records=100,
-    fetch_min_bytes=1,
-)
 
-total_expected = int(os.getenv("TOTAL_EXPECTED", "100"))  
+DATA_PATH = "/app/data/challenge_set.json"  
+with open(DATA_PATH, "r") as f:
+    data = json.load(f)
+
+# print(data.keys())
+# print(data["playlists"][0].keys())
+# print(len(data["playlists"][0]["tracks"]))
+
+TOTAL_EXPECTED = os.getenv("TOTAL_EXPECTED", "100")
 
 start = time.time()
 loaded = 0
 errors = 0
 rows = 0
 
-for message in consumer:
-    print(message.value)
+for playlist in data["playlists"]:
+
+    if not playlist["tracks"]:
+        continue
     try:
-        playlist = json.loads(message.value)
         print(f"Loading playlist: {playlist['pid']}")
         # Insert playlist and get playlist_id
         cursor.execute(
@@ -93,13 +90,12 @@ for message in consumer:
                 (playlist_id, track_id, track['pos'])
             )
 
-
-        conn.commit()  
+        conn.commit()
         print(f"Loaded playlist: {playlist['pid']}")
         loaded += 1
         rows += len(playlist['tracks'])
-        if loaded >= total_expected:
-            print(f"Reached expected number of playlists ({total_expected}). Stopping consumer loop.")
+        if loaded >= int(TOTAL_EXPECTED):
+            print(f"Reached expected number of playlists ({TOTAL_EXPECTED}). Stopping loop.")
             break
     except Exception as e:
         print(f"Error loading playlist: {e}")
@@ -113,4 +109,3 @@ print("Done loading data!", flush=True)
 print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {rows} | Errors: {errors}")
 
 conn.close()
-consumer.close()

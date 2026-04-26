@@ -5,6 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY sequential/sequential_loader.py .
 
-CMD ["python","-u", "raw_sql/loader_sql.py"]    
+CMD ["python","-u", "sequential_loader.py"]    
