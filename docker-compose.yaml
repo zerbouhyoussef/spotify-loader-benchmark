@@ -172,7 +172,7 @@ services:
   loader-raw-sql:
     build: loaders/
     container_name: loader-raw-sql-server
-    command: python -u vectorized_loader.py
+    command: python -u multithreaded_loader.py
     depends_on:
       postgres:
         condition: service_healthy

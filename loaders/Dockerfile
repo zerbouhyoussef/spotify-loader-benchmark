@@ -7,5 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY sequential/sequential_loader.py .
 COPY vectorized/vectorized_loader.py .
+COPY multithreaded/multithreaded_loader.py .
 
-CMD ["python","-u", "vectorized_loader.py"]    
+CMD ["python","-u", "multithreaded_loader.py"]    
