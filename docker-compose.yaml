@@ -222,7 +222,7 @@ services:
   loader-flink:
     build: loaders/flink/
     container_name: loader-flink-server
-    command: python3 /opt/flink/flink_loader.py
+    command: /opt/flink/bin/flink run -py /opt/flink/flink_loader.py -m flink-jobmanager:8081
     depends_on:
       flink-jobmanager:
         condition: service_healthy

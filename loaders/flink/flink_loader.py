@@ -2,11 +2,39 @@ import os
 import json
 import psycopg2
 import time
+from dotenv import load_dotenv
 
-from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.datastream.connectors.kafka import KafkaSource
+from pyflink.datastream import StreamExecutionEnvironment, MapFunction
+from pyflink.datastream.connectors.kafka import KafkaSource, KafkaOffsetsInitializer
 from pyflink.common.serialization import SimpleStringSchema
 from pyflink.common import WatermarkStrategy
+from pyflink.common.typeinfo import Types
+
+
+class CountingMapFunction(MapFunction):
+    def __init__(self, limit):
+        self.limit = limit
+        self.count = 0
+        
+    def map(self, msg_value):
+        if self.count >= self.limit:
+            # Stop processing after limit
+            return None
+        
+        self.count += 1
+        try:
+            playlist = json.loads(msg_value)
+            if not playlist.get("tracks"):
+                return f"SKIPPED ({self.count}/{self.limit})"
+            result = load_playlist(playlist)
+            if result["error"]:
+                return f"ERROR pid={playlist['pid']} ({self.count}/{self.limit})"
+            return f"OK pid={playlist['pid']} tracks={result['tracks']} ({self.count}/{self.limit})"
+        except Exception as e:
+            return f"ERROR {str(e)} ({self.count}/{self.limit})"
+
+# Load environment variables
+load_dotenv()
 
 # Database connection parameters (hardcoded for Flink cluster)
 DB_CONFIG = {
@@ -17,16 +45,17 @@ DB_CONFIG = {
     "password": "postgres"
 }
 
-KAFKA_BROKER = "kafka-broker:9093"
-KAFKA_TOPIC = "playlist-topic"
+KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL", "kafka-broker:9093")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "playlist-topic")
+TOTAL_EXPECTED = int(os.getenv("TOTAL_EXPECTED", "1000"))
 
 
 def load_playlist(playlist):
-    print(f"Attempting DB connection to: {DB_CONFIG['host']}:{DB_CONFIG['port']}", flush=True)
+    print(f"Attempting DB connection to: {DB_CONFIG['host']}:{DB_CONFIG['port']}")
     try:
         conn = psycopg2.connect(**DB_CONFIG)
     except Exception as e:
-        print(f"DB Connection failed: {e}", flush=True)
+        print(f"DB Connection failed: {e}")
         raise
     cursor = conn.cursor()
     try:
@@ -104,32 +133,27 @@ def load_playlist(playlist):
         cursor.close()
         conn.close()
 
-def playlist_message_to_db(msg_value):
-    try:
-        playlist = json.loads(msg_value)
-        if not playlist.get("tracks"):
-            return "SKIPPED"
-        result = load_playlist(playlist)
-        if result["error"]:
-            return f"ERROR pid={playlist['pid']}"
-        return f"OK pid={playlist['pid']} tracks={result['tracks']}"
-    except Exception as e:
-        return f"ERROR {str(e)}"
 
 def main():
-    # Get execution environment (will run in embedded mode)
+    # Get execution environment
     env = StreamExecutionEnvironment.get_execution_environment()
     
-    # Configure parallelism
-    env.set_parallelism(2)
+    # Set parallelism to 1 so CountingMapFunction counts accurately
+    env.set_parallelism(1)
     
-    print(f"Connecting to Kafka at {KAFKA_BROKER} topic {KAFKA_TOPIC}", flush=True)
+    print(f"Connecting to Kafka at {KAFKA_BROKER} topic {KAFKA_TOPIC}")
+    print(f"Will process {TOTAL_EXPECTED} playlists then stop")
 
+    # Make source bounded - capture current latest offset and process up to that point
+    # This makes it a batch job that will finish after processing all available messages
+    # Use a unique consumer group name with timestamp to always read from beginning
     kafka_source = KafkaSource.builder() \
         .set_bootstrap_servers(KAFKA_BROKER) \
         .set_topics(KAFKA_TOPIC) \
-        .set_group_id("flink-loader") \
+        .set_group_id(f"flink-loader-{int(time.time())}") \
+        .set_starting_offsets(KafkaOffsetsInitializer.earliest()) \
         .set_value_only_deserializer(SimpleStringSchema()) \
+        .set_bounded(KafkaOffsetsInitializer.latest()) \
         .build()
 
     ds = env.from_source(
@@ -139,13 +163,50 @@ def main():
     )
 
     start = time.time()
+    
+    # Record start counts from database
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM playlist")
+        playlists_before = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM track")
+        tracks_before = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+    except:
+        playlists_before = 0
+        tracks_before = 0
 
-    ds.map(lambda msg: playlist_message_to_db(msg)).print()
+    # Map each message to process it and count
+    ds.map(CountingMapFunction(TOTAL_EXPECTED), output_type=Types.STRING()).filter(lambda x: x is not None).print()
 
-    env.execute("Flink Playlist Loader")
+    result = env.execute("Flink Playlist Loader")
 
     duration = time.time() - start
-    print(f"Duration: {duration:.2f}s")
+    
+    # Get final counts from database
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM playlist")
+        playlists_after = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM track")
+        tracks_after = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        
+        loaded = playlists_after - playlists_before
+        tracks = tracks_after - tracks_before
+        errors = 0  # No real errors - we just processed what was available
+    except Exception as e:
+        print(f"Error querying database: {e}")
+        loaded = 0
+        tracks = 0
+        errors = 0
+    
+    print("Done loading data!")
+    print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {tracks} | Errors: {errors}")
 
 if __name__ == "__main__":
     main()

@@ -34,3 +34,14 @@ CREATE TABLE IF NOT EXISTS playlist_track (
     pos         INT,
     PRIMARY KEY (playlist_id, track_id)
 );
+
+CREATE TABLE IF NOT EXISTS benchmark_results (
+    id          SERIAL PRIMARY KEY,
+    loader_name VARCHAR(50) NOT NULL,
+    duration_s  FLOAT,
+    playlists   INT,
+    tracks      INT,
+    errors      INT,
+    run_id      VARCHAR(50),
+    run_at      TIMESTAMP DEFAULT NOW()
+);
