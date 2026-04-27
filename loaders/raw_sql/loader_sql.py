@@ -19,12 +19,16 @@ conn = psycopg2.connect(
 
 cursor = conn.cursor()
 
+# Use unique consumer group for each run
+consumer_group = f"raw-sql-loader-{int(time.time())}"
+print(f"Using consumer group: {consumer_group}")
+
 consumer = KafkaConsumer(
     os.getenv("KAFKA_TOPIC"),
     bootstrap_servers=[os.getenv("KAFKA_BROKER_URL")],
     auto_offset_reset="earliest",
     enable_auto_commit=True,
-    group_id="raw-sql-loader",
+    group_id=consumer_group,
     consumer_timeout_ms=30000,
     max_poll_records=100,
     fetch_min_bytes=1,
