@@ -135,16 +135,45 @@
       "id": 5,
       "title": "Duration Over Time by Loader",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
       "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "legend": { 
+          "displayMode": "table", 
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["mean", "last", "min"]
+        },
+        "tooltip": { 
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "custom": { "lineWidth": 2, "pointSize": 6, "showPoints": "always" }
+          "custom": { 
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "pointSize": 8,
+            "showPoints": "auto",
+            "axisPlacement": "auto",
+            "axisLabel": "Duration (seconds)",
+            "scaleDistribution": { "type": "linear" }
+          },
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "red", "value": 60 }
+            ]
+          }
         },
         "overrides": []
       },
@@ -159,9 +188,95 @@
     },
     {
       "id": 6,
+      "title": "Throughput Comparison Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 26, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "legend": { 
+          "displayMode": "table", 
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["mean", "last"]
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { 
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "pointSize": 8,
+            "showPoints": "auto",
+            "axisPlacement": "auto",
+            "axisLabel": "Playlists/second"
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT run_at AS time, loader_name AS metric, ROUND((playlists / NULLIF(duration_s, 0))::numeric, 2) AS value FROM benchmark_results WHERE $__timeFilter(run_at) ORDER BY run_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Efficiency: Tracks Loaded per Second",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 26, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "legend": { 
+          "displayMode": "table", 
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["mean", "max"]
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { 
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 3,
+            "fillOpacity": 15,
+            "gradientMode": "hue",
+            "spanNulls": true,
+            "pointSize": 8,
+            "showPoints": "auto",
+            "axisPlacement": "auto",
+            "axisLabel": "Tracks/second"
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT run_at AS time, loader_name AS metric, ROUND((tracks / NULLIF(duration_s, 0))::numeric, 2) AS value FROM benchmark_results WHERE $__timeFilter(run_at) ORDER BY run_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
       "title": "All Benchmark Results",
       "type": "table",
-      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
+      "gridPos": { "x": 0, "y": 34, "w": 24, "h": 10 },
       "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
       "options": {
         "sortBy": [{ "displayName": "run_at", "desc": true }],

@@ -27,7 +27,7 @@ try:
         list_data = json_data["playlists"] if isinstance(json_data, dict) else json_data
         
         print(f"Loaded {len(list_data)} playlists. Starting to send...", flush=True)
-        valid = [p for p in list_data if p["tracks"] != []]
+        valid = [p for p in list_data if p["tracks"] != []][:1000]
         for idx, playlist in enumerate(valid):
             producer.send(TOPIC_NAME, json.dumps(playlist).encode('utf-8'))
             if idx % 10 == 0:  # Print every 10th message to reduce log spam

@@ -4,10 +4,11 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.providers.docker.operators.docker import DockerOperator
-from airflow.providers.standard.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator
+from docker.types import Mount
 
 PROJECT_DIR = os.getenv("BENCHMARK_PROJECT_DIR", "/root/spotify-loader-benchmark")
-DATA_VOLUME = f"{PROJECT_DIR}/metrics/data:/app/data:ro"
+DATA_MOUNT = Mount(target="/app/data", source=f"{PROJECT_DIR}/metrics/data", type="bind", read_only=True)
 NETWORK = "spotify-loader-benchmark_default"
 DOCKER_URL = "unix://var/run/docker.sock"
 
@@ -65,7 +66,7 @@ with DAG(
         auto_remove="success",
         docker_url=DOCKER_URL,
         mount_tmp_dir=False,
-        volumes=[DATA_VOLUME],
+        mounts=[DATA_MOUNT],
     )
 
     RUN_ID_TMPL = "{{ task_instance.xcom_pull(task_ids='generate_run_id') }}"
@@ -75,37 +76,37 @@ with DAG(
             "task_id": "loader_raw_sql",
             "image": "spotify-loader-benchmark-loader-celery:latest",
             "command": "python -u loader_sql.py",
-            "volumes": [],
+            "mounts": [],
         },
         {
             "task_id": "loader_sequential",
             "image": "spotify-loader-benchmark-loader-celery:latest",
             "command": "python -u sequential_loader.py",
-            "volumes": [DATA_VOLUME],
+            "mounts": [DATA_MOUNT],
         },
         {
             "task_id": "loader_vectorized",
             "image": "spotify-loader-benchmark-loader-celery:latest",
             "command": "python -u vectorized_loader.py",
-            "volumes": [],
+            "mounts": [],
         },
         {
             "task_id": "loader_multithreaded",
             "image": "spotify-loader-benchmark-loader-celery:latest",
             "command": "python -u multithreaded_loader.py",
-            "volumes": [],
+            "mounts": [],
         },
         {
             "task_id": "loader_celery",
             "image": "spotify-loader-benchmark-loader-celery:latest",
             "command": "python -u celery_loader.py",
-            "volumes": [],
+            "mounts": [],
         },
         {
             "task_id": "loader_flink",
             "image": "spotify-loader-benchmark-loader-flink:latest",
             "command": "/opt/flink/bin/flink run -py /opt/flink/flink_loader.py -m flink-jobmanager:8081",
-            "volumes": [],
+            "mounts": [],
         },
     ]
 
@@ -135,7 +136,7 @@ with DAG(
             auto_remove="success",
             docker_url=DOCKER_URL,
             mount_tmp_dir=False,
-            volumes=loader_cfg["volumes"],
+            mounts=loader_cfg["mounts"],
         )
 
         previous_task >> truncate >> loader

@@ -129,14 +129,15 @@ services:
   airflow-init:
     build: airflow/
     container_name: airflow-init-server
-    command: >
-      bash -c "airflow db migrate &&
-               airflow users create --username admin --firstname Admin --lastname User
-               --role Admin --email admin@example.com --password fhTmFTxwFpVh4Cwn || true"
+    command:
+      - bash
+      - -c
+      - "airflow db migrate && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password fhTmFTxwFpVh4Cwn || true"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/benchmark
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: 'h9ZPhkY10GDVhsFR-ayL9lo6FZGgPwjgcu0nd0sfCp4='
+      AIRFLOW__CORE__SECRET_KEY: 'dc7e2fae8b0f03690a7717324e406c96d9dfa0f7b497f179573b1c471e9505c4'
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     user: "${AIRFLOW_UID:-50000}:0"
@@ -147,17 +148,20 @@ services:
   airflow-webserver:
     build: airflow/
     container_name: airflow-webserver-server
-    command: api-server
+    command: webserver
+    group_add:
+      - "988"
     ports:
       - "8090:8080"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/benchmark
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: 'h9ZPhkY10GDVhsFR-ayL9lo6FZGgPwjgcu0nd0sfCp4='
+      AIRFLOW__CORE__SECRET_KEY: 'dc7e2fae8b0f03690a7717324e406c96d9dfa0f7b497f179573b1c471e9505c4'
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
-      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      AIRFLOW__WEBSERVER__BASE_URL: 'http://localhost:8090'
       _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
       BENCHMARK_PROJECT_DIR: /root/spotify-loader-benchmark
     volumes:
@@ -176,11 +180,17 @@ services:
   airflow-scheduler:
     build: airflow/
     container_name: airflow-scheduler-server
+    hostname: airflow-scheduler
     command: scheduler
+    group_add:
+      - "988"
+    ports:
+      - "8793:8793"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/benchmark
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: 'h9ZPhkY10GDVhsFR-ayL9lo6FZGgPwjgcu0nd0sfCp4='
+      AIRFLOW__CORE__SECRET_KEY: 'dc7e2fae8b0f03690a7717324e406c96d9dfa0f7b497f179573b1c471e9505c4'
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
@@ -216,21 +226,21 @@ services:
       KAFKA_BROKER_URL: kafka-broker:9093
 
 
-  # loader-raw-sql:
-  #   build: loaders/
-  #   container_name: loader-raw-sql-server
-  #   command: python -u multithreaded_loader.py
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     PYTHONUNBUFFERED: 1
-  #   volumes:
-  #     - ./metrics/data:/app/data:ro
+  loader-raw-sql:
+    build: loaders/
+    container_name: loader-raw-sql-server
+    command: python -u multithreaded_loader.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./metrics/data:/app/data:ro
 
   loader-celery:
     build: loaders/

@@ -88,9 +88,8 @@ for message in consumer:
                 track_row = cursor.fetchone()
             track_id = track_row[0]
 
-            # Insert into playlist_track using the real playlist_id and track_id
             cursor.execute(
-                "INSERT INTO playlist_track (playlist_id, track_id, pos) VALUES (%s, %s, %s)",
+                "INSERT INTO playlist_track (playlist_id, track_id, pos) VALUES (%s, %s, %s) ON CONFLICT (playlist_id, track_id) DO NOTHING",
                 (playlist_id, track_id, track['pos'])
             )
 
