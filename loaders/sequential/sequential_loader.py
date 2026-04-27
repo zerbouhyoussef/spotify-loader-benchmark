@@ -42,7 +42,7 @@ for playlist in data["playlists"]:
         # Insert playlist and get playlist_id
         cursor.execute(
             "INSERT INTO playlist (pid, name, num_tracks, num_holdouts, num_samples) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (pid) DO NOTHING RETURNING playlist_id",
-            (playlist['pid'], playlist['name'], playlist['num_tracks'], playlist['num_holdouts'], playlist['num_samples'])
+            (playlist['pid'], playlist.get('name'), playlist.get('num_tracks'), playlist.get('num_holdouts'), playlist.get('num_samples'))
         )
         row = cursor.fetchone()
         if row is None:  # Already existed

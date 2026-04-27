@@ -61,23 +61,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     
-  cassandra:
-    image: cassandra:latest
-    container_name: cassandra-server
-    healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'SELECT NOW()'"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    ports:
-      - "9042:9042"
-    environment:
-      CASSANDRA_CLUSTER_NAME: 'benchmark'
-      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
-      CASSANDRA_NUM_TOKENS: 256
-      CASSANDRA_DC: datacenter1
-    volumes:
-      - cassandra_data:/var/lib/cassandra
 
   flink-jobmanager:
     build: loaders/flink/
@@ -316,7 +299,6 @@ services:
 
 volumes:
   postgres_data:
-  cassandra_data:
   flink_data:
   grafana_data:
   airflow_data:
