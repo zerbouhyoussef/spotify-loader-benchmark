@@ -5,6 +5,7 @@ from psycopg2.extras import execute_values
 import time
 from dotenv import load_dotenv
 from kafka import KafkaConsumer
+from benchmark_utils import save_benchmark_result
 
 load_dotenv()
 
@@ -322,6 +323,8 @@ duration = time.time() - start
 
 print("Done loading data!", flush=True)
 print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {rows} | Errors: {errors}")
+
+save_benchmark_result("vectorized", duration, loaded, rows, errors)
 
 conn.close()
 consumer.close()

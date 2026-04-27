@@ -10,6 +10,35 @@ from pyflink.common.serialization import SimpleStringSchema
 from pyflink.common import WatermarkStrategy
 from pyflink.common.typeinfo import Types
 
+# Load environment variables first so DB_CONFIG picks them up
+load_dotenv()
+
+DB_CONFIG = {
+    "host": os.getenv("POSTGRES_HOST", "postgres"),
+    "port": int(os.getenv("POSTGRES_PORT", "5432")),
+    "database": os.getenv("POSTGRES_DB", "benchmark"),
+    "user": os.getenv("POSTGRES_USER", "postgres"),
+    "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
+}
+
+
+def save_benchmark_result(loader_name, duration_s, playlists, tracks, errors):
+    run_id = os.getenv("RUN_ID", f"manual_{int(time.time())}")
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO benchmark_results (loader_name, duration_s, playlists, tracks, errors, run_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (loader_name, duration_s, playlists, tracks, errors, run_id),
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"Saved benchmark result: {loader_name} run_id={run_id}")
+    except Exception as e:
+        print(f"Failed to save benchmark result: {e}")
+
 
 class CountingMapFunction(MapFunction):
     def __init__(self, limit):
@@ -32,18 +61,6 @@ class CountingMapFunction(MapFunction):
             return f"OK pid={playlist['pid']} tracks={result['tracks']} ({self.count}/{self.limit})"
         except Exception as e:
             return f"ERROR {str(e)} ({self.count}/{self.limit})"
-
-# Load environment variables
-load_dotenv()
-
-# Database connection parameters (hardcoded for Flink cluster)
-DB_CONFIG = {
-    "host": "postgres",
-    "port": 5432,
-    "database": "benchmark",
-    "user": "postgres",
-    "password": "postgres"
-}
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL", "kafka-broker:9093")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "playlist-topic")
@@ -207,6 +224,9 @@ def main():
     
     print("Done loading data!")
     print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {tracks} | Errors: {errors}")
+    
+    # Save benchmark results
+    save_benchmark_result("flink", duration, loaded, tracks, errors)
 
 if __name__ == "__main__":
     main()

@@ -4,6 +4,7 @@ import json
 from kafka import KafkaConsumer
 from dotenv import load_dotenv
 from tasks import load_playlist
+from benchmark_utils import save_benchmark_result
 
 load_dotenv()
 
@@ -58,3 +59,5 @@ duration = time.time() - start
 
 print("Done loading data!", flush=True)
 print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {rows} | Errors: {errors}")
+
+save_benchmark_result("celery", duration, loaded, rows, errors)

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from kafka import KafkaConsumer
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from benchmark_utils import save_benchmark_result
 
 load_dotenv()
 
@@ -148,3 +149,5 @@ duration = time.time() - start
 
 print("Done loading data!", flush=True)
 print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {rows} | Errors: {errors}")
+
+save_benchmark_result("multithreaded", duration, loaded, rows, errors)

@@ -3,6 +3,7 @@ import json
 import psycopg2
 import time
 from dotenv import load_dotenv
+from benchmark_utils import save_benchmark_result
 
 load_dotenv()
 
@@ -107,5 +108,7 @@ duration = time.time() - start
 
 print("Done loading data!", flush=True)
 print(f"Duration: {duration:.2f}s | Playlists: {loaded} | Tracks: {rows} | Errors: {errors}")
+
+save_benchmark_result("sequential", duration, loaded, rows, errors)
 
 conn.close()

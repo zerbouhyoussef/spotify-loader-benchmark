@@ -1,0 +1,199 @@
+{
+  "title": "Spotify Loader Benchmark",
+  "uid": "spotify-benchmark",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "tags": ["benchmark"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Duration by Loader (latest run)",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" },
+        "xField": "loader_name",
+        "barWidth": 0.7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT loader_name, duration_s FROM benchmark_results WHERE run_id = (SELECT run_id FROM benchmark_results ORDER BY run_at DESC LIMIT 1) ORDER BY duration_s DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Throughput — Playlists/s (latest run)",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" },
+        "xField": "loader_name",
+        "barWidth": 0.7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT loader_name, ROUND((playlists / NULLIF(duration_s, 0))::numeric, 2) AS playlists_per_sec FROM benchmark_results WHERE run_id = (SELECT run_id FROM benchmark_results ORDER BY run_at DESC LIMIT 1) ORDER BY playlists_per_sec DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Throughput — Tracks/s (latest run)",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" },
+        "xField": "loader_name",
+        "barWidth": 0.7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT loader_name, ROUND((tracks / NULLIF(duration_s, 0))::numeric, 2) AS tracks_per_sec FROM benchmark_results WHERE run_id = (SELECT run_id FROM benchmark_results ORDER BY run_at DESC LIMIT 1) ORDER BY tracks_per_sec DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Errors by Loader (latest run)",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" },
+        "xField": "loader_name",
+        "barWidth": 0.7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT loader_name, errors FROM benchmark_results WHERE run_id = (SELECT run_id FROM benchmark_results ORDER BY run_at DESC LIMIT 1) ORDER BY errors DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Duration Over Time by Loader",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "pointSize": 6, "showPoints": "always" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT run_at AS time, loader_name AS metric, duration_s AS value FROM benchmark_results WHERE $__timeFilter(run_at) ORDER BY run_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "All Benchmark Results",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+      "options": {
+        "sortBy": [{ "displayName": "run_at", "desc": true }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "duration_s" },
+            "properties": [{ "id": "unit", "value": "s" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "errors" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+              },
+              { "id": "custom.displayMode", "value": "color-background" }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "benchmark-postgres" },
+          "rawSql": "SELECT run_at, run_id, loader_name, duration_s, playlists, tracks, errors FROM benchmark_results ORDER BY run_at DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

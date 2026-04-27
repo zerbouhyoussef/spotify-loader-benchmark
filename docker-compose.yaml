@@ -14,7 +14,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_BYTES: 1073741824
-      KAFKA_LOG_RETENTION_MS: 10000
+      KAFKA_LOG_RETENTION_MS: 7200000
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server=localhost:9093 || exit 1"]
@@ -120,13 +120,19 @@ services:
       - "3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
 
   airflow-init:
     build: airflow/
     container_name: airflow-init-server
-    command: bash -c "airflow db migrate"
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --username admin --firstname Admin --lastname User
+               --role Admin --email admin@example.com --password fhTmFTxwFpVh4Cwn || true"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/benchmark
@@ -153,11 +159,39 @@ services:
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
       _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+      BENCHMARK_PROJECT_DIR: /root/spotify-loader-benchmark
     volumes:
       - ${AIRFLOW_PROJ_DIR:-./airflow}/dags:/opt/airflow/dags
       - ${AIRFLOW_PROJ_DIR:-./airflow}/logs:/opt/airflow/logs
       - ${AIRFLOW_PROJ_DIR:-./airflow}/config:/opt/airflow/config
       - ${AIRFLOW_PROJ_DIR:-./airflow}/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    build: airflow/
+    container_name: airflow-scheduler-server
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/benchmark
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+      _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+      BENCHMARK_PROJECT_DIR: /root/spotify-loader-benchmark
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-./airflow}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-./airflow}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-./airflow}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-./airflow}/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
     user: "${AIRFLOW_UID:-50000}:0"
     depends_on:
       postgres:
