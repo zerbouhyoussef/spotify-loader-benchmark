@@ -80,9 +80,15 @@ services:
       - cassandra_data:/var/lib/cassandra
 
   flink-jobmanager:
-    build: flink/
+    build: loaders/flink/
     container_name: flink-jobmanager-server
-    command: jobmanager
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/overview"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    command: /opt/flink/bin/jobmanager.sh start-foreground
     ports:
       - "8085:8081"
     environment:
@@ -91,11 +97,18 @@ services:
       - flink_data:/tmp
 
   flink-taskmanager:
-    build: flink/
+    build: loaders/flink/
     container_name: flink-taskmanager-server
-    command: taskmanager
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://flink-jobmanager:8081/overview | python3 -c \"import sys,json; d=json.load(sys.stdin); exit(0 if d.get('taskmanagers',0)>0 else 1)\""]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    command: /opt/flink/bin/taskmanager.sh start-foreground
     depends_on:
-      - flink-jobmanager
+      flink-jobmanager:
+        condition: service_healthy
     environment:
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
       TASK_MANAGER_NUMBER_OF_TASK_SLOTS: 2
@@ -169,21 +182,93 @@ services:
       KAFKA_BROKER_URL: kafka-broker:9093
 
 
-  loader-raw-sql:
+  # loader-raw-sql:
+  #   build: loaders/
+  #   container_name: loader-raw-sql-server
+  #   command: python -u multithreaded_loader.py
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     PYTHONUNBUFFERED: 1
+  #   volumes:
+  #     - ./metrics/data:/app/data:ro
+
+  loader-celery:
     build: loaders/
-    container_name: loader-raw-sql-server
-    command: python -u multithreaded_loader.py
+    container_name: loader-celery-server
+    command: python -u celery_loader.py
     depends_on:
-      postgres:
+      redis:
         condition: service_healthy
+      celery-worker:
+        condition: service_started
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+
     env_file:
       - .env
     environment:
       PYTHONUNBUFFERED: 1
     volumes:
       - ./metrics/data:/app/data:ro
+
+  loader-flink:
+    build: loaders/flink/
+    container_name: loader-flink-server
+    command: python3 /opt/flink/flink_loader.py
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+      flink-taskmanager:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: 1
+      JAVA_TOOL_OPTIONS: "--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+    volumes:
+      - ./metrics/data:/app/data:ro
+
+
+  redis:
+    image: redis:latest
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  celery-worker:
+    build: loaders/
+    container_name: celery-worker-server
+    command: celery -A tasks worker --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./metrics/data:/app/data:ro
+
 
 volumes:
   postgres_data:

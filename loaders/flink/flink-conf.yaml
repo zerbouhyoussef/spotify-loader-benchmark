@@ -1,0 +1,24 @@
+# Flink configuration for Docker
+
+jobmanager.rpc.address: flink-jobmanager
+jobmanager.rpc.port: 6123
+jobmanager.bind-host: 0.0.0.0
+jobmanager.memory.process.size: 1600m
+
+rest.address: flink-jobmanager
+rest.port: 8081
+rest.bind-address: 0.0.0.0
+rest.bind-port: 8081
+
+taskmanager.host: flink-taskmanager
+taskmanager.rpc.port: 6122
+taskmanager.bind-host: 0.0.0.0
+taskmanager.numberOfTaskSlots: 2
+taskmanager.memory.process.size: 1728m
+
+parallelism.default: 2
+
+# JVM options to fix Java module access issues with PyFlink
+env.java.opts.all: --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+
+python.executable: python3
