@@ -27,14 +27,13 @@ try:
         list_data = json_data["playlists"] if isinstance(json_data, dict) else json_data
         
         print(f"Loaded {len(list_data)} playlists. Starting to send...", flush=True)
-        valid = [p for p in list_data if p["tracks"] != []][:1000]
+        valid = [p for p in list_data if p["tracks"] != []][:100000]  # Send 100k playlists
         for idx, playlist in enumerate(valid):
             producer.send(TOPIC_NAME, json.dumps(playlist).encode('utf-8'))
-            if idx % 10 == 0:  # Print every 10th message to reduce log spam
-                print(f"Sent {len(valid)} playlists...", flush=True)
-                print(f"Data: {playlist}", flush=True)
-            time.sleep(0.1)  # Reduced sleep time
+            if idx % 1000 == 0:  # Print every 1000th message to reduce log spam
+                print(f"Sent {idx}/{len(valid)} playlists...", flush=True)
         
+        producer.flush()  # Ensure all messages are sent
         print(f"Finished sending {len(valid)} playlists!", flush=True)
         
 except FileNotFoundError as e:

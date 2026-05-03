@@ -20,7 +20,7 @@ COMMON_ENV = {
     "POSTGRES_PASSWORD": "postgres",
     "KAFKA_BROKER_URL": "kafka-broker:9093",
     "KAFKA_TOPIC": "playlist-topic",
-    "TOTAL_EXPECTED": "10000",
+    "TOTAL_EXPECTED": "100000",
     "BATCH_SIZE": "100",
     "REDIS_URL": "redis://redis:6379/0",
     "MAX_WORKERS": "10",
